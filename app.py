@@ -19,8 +19,10 @@ model_error = None
 
 def load_model():
     global model, model_error
-    if model is not None or model_error is not None:
+    if model is not None:
         return model
+    if model_error is not None:
+        return None
 
     for model_dir in MODEL_DIRS:
         for filename in MODEL_FILENAMES:
@@ -35,6 +37,7 @@ def load_model():
 
 
 def get_aqi_details(aqi_value: int):
+    """Return AQI category details using CPCB-style breakpoints (0-50, ..., 401-500)."""
     if aqi_value <= 50:
         return "🟢 Good", "good", "Air quality is excellent. Outdoor activities are safe for everyone."
     if aqi_value <= 100:
