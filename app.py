@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Lock
 import os
 
 import joblib
@@ -16,6 +17,7 @@ MODEL_DIRS = [
 
 model = None
 model_error = None
+model_lock = Lock()
 
 
 def load_model():
@@ -25,16 +27,23 @@ def load_model():
     if model_error is not None:
         return None
 
-    for model_dir in MODEL_DIRS:
-        for filename in MODEL_FILENAMES:
-            model_path = model_dir / filename
-            if model_path.exists():
-                model = joblib.load(model_path)
-                return model
+    with model_lock:
+        if model is not None:
+            return model
+        if model_error is not None:
+            return None
 
-    searched = [str(model_dir / filename) for model_dir in MODEL_DIRS for filename in MODEL_FILENAMES]
-    model_error = "Model file not found. Checked: " + ", ".join(searched)
-    return None
+        for model_dir in MODEL_DIRS:
+            for filename in MODEL_FILENAMES:
+                model_path = model_dir / filename
+                if model_path.exists():
+                    # joblib uses pickle under the hood; only load trusted model artifacts.
+                    model = joblib.load(model_path)
+                    return model
+
+        searched = [str(model_dir / filename) for model_dir in MODEL_DIRS for filename in MODEL_FILENAMES]
+        model_error = "Model file not found. Checked: " + ", ".join(searched)
+        return None
 
 
 def get_aqi_details(aqi_value: int):
@@ -54,7 +63,7 @@ def get_aqi_details(aqi_value: int):
 
 @app.route("/", methods=["GET"])
 def home():
-    return render_template("index.html")
+    return render_template("index.html", prediction=None)
 
 
 @app.route("/predict", methods=["POST"])
@@ -67,11 +76,11 @@ def predict():
             values[key] = float(request.form[key])
     except (KeyError, TypeError, ValueError):
         error = "Please enter valid numeric values for all six pollutant inputs."
-        return render_template("index.html", error=error, form_values=request.form)
+        return render_template("index.html", error=error, form_values=request.form, prediction=None)
 
     loaded_model = load_model()
     if loaded_model is None:
-        return render_template("index.html", error=model_error, form_values=values)
+        return render_template("index.html", error=model_error, form_values=values, prediction=None)
 
     features = np.array([
         [
@@ -88,7 +97,7 @@ def predict():
         prediction = float(loaded_model.predict(features)[0])
     except Exception:
         error = "Prediction failed. Please verify model compatibility and input format."
-        return render_template("index.html", error=error, form_values=values)
+        return render_template("index.html", error=error, form_values=values, prediction=None)
 
     aqi_value = int(np.clip(round(prediction), 0, 500))
     category, category_class, advisory = get_aqi_details(aqi_value)
