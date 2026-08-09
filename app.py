@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 import joblib
 import numpy as np
@@ -103,4 +104,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
