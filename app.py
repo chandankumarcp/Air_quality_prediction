@@ -22,11 +22,6 @@ model_lock = Lock()
 
 def load_model():
     global model, model_error
-    if model is not None:
-        return model
-    if model_error is not None:
-        return None
-
     with model_lock:
         if model is not None:
             return model
@@ -96,6 +91,7 @@ def predict():
     try:
         prediction = float(loaded_model.predict(features)[0])
     except Exception:
+        app.logger.exception("Model prediction failed")
         error = "Prediction failed. Please verify model compatibility and input format."
         return render_template("index.html", error=error, form_values=values, prediction=None)
 
@@ -113,4 +109,5 @@ def predict():
 
 
 if __name__ == "__main__":
+    # Development server entrypoint; use a production WSGI server for deployment.
     app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
